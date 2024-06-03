@@ -1,0 +1,24 @@
+<div style="display: flex; gap: 1rem; flex-direction: column;">
+  <div>Local Stream</div>
+  <div style="width: 100%; aspect-ratio: 16/9">
+    <video autoplay id="localVideoPlayer" style="width: 100%; height: 100%;" [srcObject]="localStream"></video>
+  </div>
+
+  <div style="display: flex; flex-direction: column;">
+    <title>Caller</title>
+    <button (click)="createCallerPeer()">Create Caller Peer</button>
+    <input type="text" (change)="readCalleeAnswer($event)" placeholder="Write the answer SDP">
+  </div>
+
+  <div>Remote Stream</div>
+  <div *ngFor="let stream of remoteStreams | async;">
+    <div style="width: 100%; aspect-ratio: 16/9">
+      <video autoplay style="width: 100%; height: 100%;" [srcObject]="stream"></video>
+    </div>
+  </div>
+
+  <div style="display: flex; flex-direction: column;">
+    <title>Callee</title>
+    <input type="text" (change)="createCalleePeer($event)" placeholder="Write the offer SDP">
+  </div>
+</div>
