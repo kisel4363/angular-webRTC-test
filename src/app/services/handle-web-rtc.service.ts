@@ -1,5 +1,6 @@
 import { Injectable, OnInit } from '@angular/core'; 
-import { BehaviorSubject, Observable } from 'rxjs';
+import { BehaviorSubject, Observable, Subject } from 'rxjs';
+import { RemoteUser } from '../app.component';
 
 enum EnumPeerType { CALLER = "Caler", CALLEE = "Callee"}
 
@@ -7,149 +8,108 @@ enum EnumPeerType { CALLER = "Caler", CALLEE = "Callee"}
     providedIn: 'root'
 })
 export class HandleWebRtcService {
-    private peerType = "";
-    private callerPeer!: RTCPeerConnection;
-    private calleePeer!: RTCPeerConnection;
-
-    private callerDataChannel!: RTCDataChannel;
-    private calleeDataChannel!: RTCDataChannel;
-
-    private remoteStreamsEmitter: BehaviorSubject<MediaStream[]> = new BehaviorSubject<MediaStream[]>([]);
-    private remoteStreams: MediaStream[] = [];
+    private calleePeerIndex = -1;
+    private callerPeerIndex = -1;
+    private callerPeer: RTCPeerConnection[] = [];
+    get currCallerPeer(): RTCPeerConnection {
+        if (this.callerPeer.length === 0) throw new Error("No callee peers available");
+        return this.callerPeer[this.callerPeerIndex];
+    }
+    set currCallerPeer(peer: RTCPeerConnection) {
+        this.callerPeer = [...this.callerPeer, peer ];
+    }
+    private calleePeer: RTCPeerConnection[] = [];
+    get currCalleePeer(): RTCPeerConnection {
+        if (this.calleePeer.length === 0) throw new Error("No callee peers available");
+        return this.calleePeer[this.calleePeerIndex];
+    }
+    set currCalleePeer(peer: RTCPeerConnection) {
+        this.calleePeer = [...this.calleePeer, peer];
+    }
+    private remoteStreamsEmitter = new Subject<RemoteUser>();
 
     constructor() { }
 
+    callUser(userId: string, streams: {video: MediaStream}){
+        
+    }
     setUpCallerPeer(streams: {video: MediaStream}): Promise<string>{
         // Create a new RTCPeerConnection with offer setted
         return new Promise((resolve, reject) => {
-            if (this.peerType !== "") { reject("Peer already setted"); }
-            this.peerType = "caller";
-            this.callerPeer = new RTCPeerConnection(configuration);
+
+            this.callerPeerIndex++;
+            // this.peerType = [...this.peerType, ""];
+            // this.peerType[this.peerIndex] = "caller";
+
+            this.currCallerPeer = new RTCPeerConnection(configuration);
             // Add video track to callerPeer
-            this.callerPeer.addTrack(streams.video.getTracks()[0], streams.video);
+            this.currCallerPeer.addTrack(streams.video.getTracks()[0], streams.video);
             // Add listener for remote streams
-            this.callerPeer.ontrack = (e: RTCTrackEvent) => {
-                this.remoteStreams = [...e.streams];
-                console.log("Reading caller remote streams: ", this.remoteStreams);
-                this.remoteStreamsEmitter.next(this.remoteStreams);
+            this.currCallerPeer.ontrack = (e: RTCTrackEvent) => {
+                const remoteUser: RemoteUser = {
+                    camera: e.streams[0],
+                }
+                this.remoteStreamsEmitter.next(remoteUser);
             }
             // Handle RTCIceCandidates gathering
-            this.callerPeer.onicecandidate = (event) => {
-                console.log('ice gathering state', this.callerPeer.iceGatheringState, 'iceCandidate ', this.callerPeer.localDescription)
-                // if(this.callerPeer.iceGatheringState !== 'complete') return;
-                resolve(JSON.stringify(this.callerPeer.localDescription));
+            this.currCallerPeer.onicecandidate = (event) => {
+                console.log('ice gathering state', this.currCallerPeer.iceGatheringState, 'iceCandidate ', this.currCallerPeer.localDescription)
+                // if(this.currCallerPeer.iceGatheringState !== 'complete') return;
+                resolve(JSON.stringify(this.currCallerPeer.localDescription));
             };
-            this.callerPeer.onicecandidateerror = (event) => {
-                this.peerType = "";
-                reject(event);
-            }
+            this.currCallerPeer.onicecandidateerror = (event) => { reject(event); }
             // Hnadling offer creation
-            this.callerPeer.createOffer().then((offer) => {
-                if (!offer) { this.peerType = ""; reject("Offer is null"); }
-                this.callerPeer.setLocalDescription(offer);
-            }).catch((error) => {
-                this.peerType = "";
-                reject(error);
+            this.currCallerPeer.createOffer().then((offer) => {
+                this.currCallerPeer.setLocalDescription(offer);
             })
+            .catch((error) => { reject(error); })
         });
     }
-
-    setUpDataChannel(){
-        return new Promise((resolve, reject) => {
-            if (!this.peerType) throw new Error("Peer not setted");
-            if (this.peerType === "caller") {
-                this.setUpCallerDataChannel();
-                resolve(EnumPeerType.CALLER);
-            } else {
-                this.setUpCalleeDataChannel().then( () => {
-                    resolve(EnumPeerType.CALLEE);
-                });
-            }
-        });
-    }
-
-    getRemoteStreams(): Observable<MediaStream[]>{
+    getRemoteStreams(): Observable<RemoteUser>{
         return this.remoteStreamsEmitter.asObservable();
     }
-
     setCalleeAnswer(answer: string): Promise<void>{
-        return new Promise((resolve, reject) => {
-            console.log("peerType: ", this.peerType)
-            if (this.peerType !== "caller") { reject("Peer not setted"); }
-            const parsedAnswer = JSON.parse(answer) as RTCSessionDescription;
-            return this.callerPeer.setRemoteDescription(parsedAnswer);
-        })
+        const parsedAnswer = JSON.parse(answer) as RTCSessionDescription;
+        return this.currCallerPeer.setRemoteDescription(parsedAnswer);
     }
-
-    private setUpCallerDataChannel(){
-        this.callerDataChannel = this.callerPeer.createDataChannel("dataChannel");
-    }
-
-    private setUpCalleeDataChannel(){
-        return new Promise((resolve, reject) => {
-            this.calleePeer.ondatachannel = (event) => {
-                this.calleeDataChannel = event.channel;
-            }
-        })
-    }
-
-    getDataChannelMessages(): Observable<string>{
-        return new Observable(observer => {
-            if (!this.peerType) throw new Error("Peer not setted");
-            if (this.peerType === "caller") {
-                this.callerDataChannel.onmessage = (event) => {
-                    observer.next(event.data);
-                }
-            } else {
-                this.calleeDataChannel.onmessage = (event) => {
-                    observer.next(event.data);
-                }
-            }
-        });
-    }
-
     getCallerOffer(): string{
-        if(this.peerType !== "caller") throw new Error(this.peerType? "Already exists a callee peer" : "Peer not setted");
-        return JSON.stringify(this.callerPeer.localDescription);
+        return JSON.stringify(this.currCallerPeer.localDescription);
     }
-
     getCalleeOffer(): string{
-        if(this.peerType !== "callee") throw new Error(this.peerType? "Already exists a caller peer" : "Peer not setted");
-        return JSON.stringify(this.calleePeer.localDescription);
+        return JSON.stringify(this.currCalleePeer.localDescription);
     }
-
-    setUpCalleePeer(offer: string, streams: {video: MediaStream}): Promise<string>{
+    setUpCalleePeer(offer: {offer: string, from: string}, streams: {video: MediaStream}): Promise<string>{
         return new Promise((resolve, reject) => {
+            this.calleePeerIndex++;
+            // this.peerType = [...this.peerType, ""];
+            // this.peerType[this.peerIndex] = "callee";
 
-            if (this.peerType !== "") { reject("Peer already setted"); }
-
-            this.peerType = "callee";
-            const parsedOffer = JSON.parse(offer) as RTCSessionDescription;
-            this.calleePeer = new RTCPeerConnection(configuration);
+            
+            const parsedOffer = JSON.parse(offer.offer) as RTCSessionDescription;
+            this.currCalleePeer = new RTCPeerConnection(configuration);
             // Add local track to calleePeer
-            this.calleePeer.addTrack(streams.video.getTracks()[0], streams.video);
+            this.currCalleePeer.addTrack(streams.video.getTracks()[0], streams.video);
 
             // Add listener for remote streams
-            this.calleePeer.ontrack = (e: RTCTrackEvent) => {
-                this.remoteStreams = [...e.streams];
-                console.log("Reading callee remote streams: ", this.remoteStreams);
-                this.remoteStreamsEmitter.next(this.remoteStreams);
+            this.currCalleePeer.ontrack = (e: RTCTrackEvent) => {
+                const remoteUser: RemoteUser = {
+                    camera: e.streams[0],
+                }
+                this.remoteStreamsEmitter.next(remoteUser);
             }
 
-            this.calleePeer.setRemoteDescription(parsedOffer);
-            this.calleePeer.onicecandidate = () => {
-                // if(this.calleePeer.iceGatheringState !== 'complete') return;
-                resolve( JSON.stringify(this.calleePeer.localDescription));
+            this.currCalleePeer.setRemoteDescription(parsedOffer);
+            this.currCalleePeer.onicecandidate = () => {
+                console.log("Returning answer", JSON.stringify(this.currCalleePeer.localDescription))
+                resolve( JSON.stringify(this.currCalleePeer.localDescription));
             };
-            this.calleePeer.onicecandidateerror = e => {
-                this.peerType = "";
+            this.currCalleePeer.onicecandidateerror = e => {
                 reject(e);
             }
-            this.calleePeer.createAnswer().then((answer) => {
-                if (!answer) { this.peerType = ""; reject("Answer is null"); }
-                this.calleePeer.setLocalDescription(answer);
+            this.currCalleePeer.createAnswer().then((answer) => {
+                this.currCalleePeer.setLocalDescription(answer);
             })
-            .catch((error) => { this.peerType = ""; reject(error);})
+            .catch((error) => { reject(error);})
         });
     }
 }

@@ -8,45 +8,44 @@ import { io, Socket } from "socket.io-client";
 export class HandleSocketService {
 
     public socket: Socket;
-    private user: any;
+    private user!: {username: string, id: string};
 
-    private offetEmmiter = new Subject<string>();
-    private answerEmmiter = new Subject<string>();
-    private connectionEmmiter = new Subject<string>();
+    private offerEmmiter = new Subject<{offer: string, from: string}>();
+    private answerEmmiter = new Subject<{answer: string, from: string}>();
 
     constructor() {
         // Initialize the socket connection
-        this.socket = io("https://192.168.217.18:8000");
-
+        this.socket = io("https://192.168.228.18:8000");
         this.socket.on('connection', (user) => {
             this.user = user;
-
+            console.warn("IM USER ", user);
         })
-        
-        this.socket.on("offer", (data) => {
-            this.offetEmmiter.next(data);
+        this.socket.on("offer", (fromUser, data) => {
+            this.offerEmmiter.next({offer: data, from: fromUser});
         })
-        
-        this.socket.on("answer", (data) => {
-            this.answerEmmiter.next(data);
+        this.socket.on("answer", (fromUser, data) => {
+            this.answerEmmiter.next({answer: data, from: fromUser});
         })
-        
         this.socket.connect()
     }
 
-    sendOffer(data: string){
-        this.socket.emit("offer", data, "C2")
+    sendOffer(data: string, contact: string){
+        this.socket.emit("offer", this.user.username, contact, data)
     }
 
-    sendAnswer(data: string){
-        this.socket.emit("answer", data, "C1")
+    sendAnswer(data: string, contact: string){
+        this.socket.emit("answer", this.user.username, contact, data)
     }
 
-    listenOffert(): Observable<string>{
-        return this.offetEmmiter.asObservable();
+    callAllPeers(data:string){
+        this.socket.emit("callAllPeers", this.user.username, data)
     }
 
-    listenAnswer(): Observable<string>{
+    listenOffer(): Observable<{offer: string, from: string}>{
+        return this.offerEmmiter.asObservable();
+    }
+
+    listenAnswer(): Observable<{answer: string, from: string}>{
         return this.answerEmmiter.asObservable();
     }
 

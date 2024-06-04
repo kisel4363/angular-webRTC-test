@@ -5,20 +5,20 @@
   </div>
 
   <div style="display: flex; flex-direction: column;">
-    <title>Caller</title>
-    <button (click)="createCallerPeer()">Create Caller Peer</button>
-    <input type="text" (change)="readCalleeAnswer($event)" placeholder="Write the answer SDP">
+    <button (click)="createCallerPeer('C2')">Call C2</button>
+    <!-- <button (click)="createCallerPeer('C3')">Call C3</button> -->
+    <!-- <button (click)="callAllPeers()">Call all</button> -->
   </div>
 
   <div>Remote Stream</div>
-  <div *ngFor="let stream of remoteStreams | async;">
+  <div *ngFor="let remoteUser of remoteUsersEmitter | async;">
     <div style="width: 100%; aspect-ratio: 16/9">
-      <video autoplay style="width: 100%; height: 100%;" [srcObject]="stream"></video>
+      <video autoplay style="width: 100%; height: 100%;" [srcObject]="remoteUser.camera"></video>
     </div>
   </div>
 
-  <div style="display: flex; flex-direction: column;">
+  <!-- <div style="display: flex; flex-direction: column;">
     <title>Callee</title>
     <input type="text" (change)="createCalleePeer($event)" placeholder="Write the offer SDP">
-  </div>
+  </div> -->
 </div>
