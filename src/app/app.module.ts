@@ -3,10 +3,14 @@ import { BrowserModule } from '@angular/platform-browser';
 
 import { AppRoutingModule } from './app-routing.module';
 import { AppComponent } from './app.component';
+import { TwoWayStreamComponent } from './components/two-way-stream/two-way-stream.component';
+import { RenegotiateComponent } from './components/renegotiate/renegotiate.component';
 
 @NgModule({
   declarations: [
-    AppComponent
+    AppComponent,
+    TwoWayStreamComponent,
+    RenegotiateComponent
   ],
   imports: [
     BrowserModule,

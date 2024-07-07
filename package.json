@@ -6,7 +6,7 @@
     "start": "ng serve",
     "serve": "ng serve --host",
     "build": "ng build",
-    "watch": "ng serve --host 0.0.0.0 --disable-host-check --ssl true --ssl-key ./ssl/server.key --ssl-cert ./ssl/server.crt",
+    "watch": "bash ./ssl/update_crts.sh && ng serve --host 0.0.0.0 --disable-host-check --ssl true --ssl-key ./ssl/server.key --ssl-cert ./ssl/server.crt",
     "test": "ng test"
   },
   "private": true,

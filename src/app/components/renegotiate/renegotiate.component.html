@@ -1,0 +1,10 @@
+<div>
+    <h1> Local Stream </h1>
+    <video playsInline controls [srcObject]="localStream" style="width: 200px; height: 150px;" id="localStream" autoplay></video>
+    <h1> Remote Stream </h1>
+    <video playsInline controls [srcObject]="remoteStream" style="width: 200px; height: 150px;" id="localStream" autoplay></video>
+</div>
+
+<div *ngIf="user.username === 'C1'" >
+    <button (click)="sendC1Stream()" > Send Stream </button>
+</div>

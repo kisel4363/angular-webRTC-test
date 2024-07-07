@@ -4,9 +4,9 @@ import { RemoteUser } from '../app.component';
 
 enum EnumPeerType { CALLER = "Caler", CALLEE = "Callee"}
 
-@Injectable({
-    providedIn: 'root'
-})
+// @Injectable({
+//     providedIn: 'root'
+// })
 export class HandleWebRtcService {
     private calleePeerIndex = -1;
     private callerPeerIndex = -1;
@@ -33,19 +33,33 @@ export class HandleWebRtcService {
     callUser(userId: string, streams: {video: MediaStream}){
         
     }
-    setUpCallerPeer(streams: {video: MediaStream}): Promise<string>{
+    setUpCallerPeer(streams: {camera: MediaStream, screen: MediaStream}): Promise<string>{
         // Create a new RTCPeerConnection with offer setted
         return new Promise((resolve, reject) => {
-
             this.callerPeerIndex++;
-            // this.peerType = [...this.peerType, ""];
-            // this.peerType[this.peerIndex] = "caller";
-
             this.currCallerPeer = new RTCPeerConnection(configuration);
             // Add video track to callerPeer
-            this.currCallerPeer.addTrack(streams.video.getTracks()[0], streams.video);
+            const audio = streams.camera.getAudioTracks()[0];
+            this.currCallerPeer.addTrack(audio, streams.camera);
+            const video = streams.camera.getVideoTracks()[0];
+            this.currCallerPeer.addTrack(video, streams.camera);
+            const screen = streams.screen.getVideoTracks()[0];
+            this.currCallerPeer.addTrack(screen, streams.screen);
+            console.log('audio', { hint: audio.contentHint, label: audio.label, kind: audio.kind, id: audio.id })
+            console.log('camera', { hint: video.contentHint, label: video.label, kind: video.kind, id: video.id })
+            console.log('screen', { hint: screen.contentHint, label: screen.label, kind: screen.kind, id: screen.id })
             // Add listener for remote streams
             this.currCallerPeer.ontrack = (e: RTCTrackEvent) => {
+                // console.log("RTCTrackEvent", e)
+                // const remoteUser: RemoteUser = {
+                //     camera: e.streams[0],
+                // }
+                // this.remoteStreamsEmitter.next(remoteUser);
+                const tracks = e.streams[0].getTracks();
+                if(tracks.length < 2) return 
+                const alreadyEmited = this.emitedStreamsIds.find( id => id === e.streams[0].id);
+                if(alreadyEmited) return 
+                this.emitedStreamsIds = [...this.emitedStreamsIds, e.streams[0].id]
                 const remoteUser: RemoteUser = {
                     camera: e.streams[0],
                 }
@@ -65,6 +79,21 @@ export class HandleWebRtcService {
             .catch((error) => { reject(error); })
         });
     }
+    sendOtherStream(stream: MediaStream){
+        this.currCallerPeer.addTransceiver(stream.getVideoTracks()[0])
+    }
+    async switchCam(): Promise<MediaStream>{
+        const facingMode = 'environment';
+        return navigator.mediaDevices.getUserMedia({ video: { facingMode }, audio: true }).then( stream => {
+            const newVideoTrack = stream.getVideoTracks()[0];
+            console.log('Printing senders stats')
+            this.calleePeer[this.calleePeerIndex].getSenders().forEach( sender => {
+                console.log({kind: sender.track?.kind, id: sender.track?.id, label: sender.track?.label})
+                // sender.track?.kind === "video"
+            } )  //.replaceTrack(newVideoTrack)
+            return stream
+        })
+    }
     getRemoteStreams(): Observable<RemoteUser>{
         return this.remoteStreamsEmitter.asObservable();
     }
@@ -78,20 +107,30 @@ export class HandleWebRtcService {
     getCalleeOffer(): string{
         return JSON.stringify(this.currCalleePeer.localDescription);
     }
-    setUpCalleePeer(offer: {offer: string, from: string}, streams: {video: MediaStream}): Promise<string>{
+    protected emitedStreamsIds: string[] = [];
+    setUpCalleePeer(offer: {offer: string, from: string}, streams: {camera: MediaStream, screen: MediaStream}): Promise<string>{
         return new Promise((resolve, reject) => {
             this.calleePeerIndex++;
             // this.peerType = [...this.peerType, ""];
             // this.peerType[this.peerIndex] = "callee";
-
-            
             const parsedOffer = JSON.parse(offer.offer) as RTCSessionDescription;
+            console.log("PARSED OFFER", parsedOffer)
             this.currCalleePeer = new RTCPeerConnection(configuration);
             // Add local track to calleePeer
-            this.currCalleePeer.addTrack(streams.video.getTracks()[0], streams.video);
-
+            const audio = streams.camera.getAudioTracks()[0];
+            this.currCalleePeer.addTrack(audio, streams.camera);
+            const video = streams.camera.getVideoTracks()[0];
+            this.currCalleePeer.addTrack(video, streams.camera);
+            const screen = streams.screen.getVideoTracks()[0];
+            this.currCalleePeer.addTrack(screen, streams.screen);
             // Add listener for remote streams
+            
             this.currCalleePeer.ontrack = (e: RTCTrackEvent) => {
+                const tracks = e.streams[0].getTracks();
+                if(tracks.length < 2) return 
+                const alreadyEmited = this.emitedStreamsIds.find( id => id === e.streams[0].id);
+                if(alreadyEmited) return 
+                this.emitedStreamsIds = [...this.emitedStreamsIds, e.streams[0].id]
                 const remoteUser: RemoteUser = {
                     camera: e.streams[0],
                 }

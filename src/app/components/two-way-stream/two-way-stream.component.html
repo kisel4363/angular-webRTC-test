@@ -1,0 +1,12 @@
+<div *ngIf="user.username === 'C2'" style="display: flex; flex-direction: column; align-items: center;">
+    <h1>Making Call </h1>
+    <video playsInline controls [srcObject]="localStream" style="width: 200px; height: 150px;" id="localVideo" autoplay></video>
+    <video playsInline controls [srcObject]="remoteStream" style="width: 200px; height: 150px;" id="remoteVideo" autoplay></video>
+    <button (click)="startCall()" >StartCall</button>
+</div>
+
+<div *ngIf="user.username === 'C1'">
+    <h1>Receiving Call </h1>
+    <video playsInline controls [srcObject]="localStream" style="width: 200px; height: 150px;" id="localStream" autoplay></video>
+    <video playsInline controls [srcObject]="remoteStream" style="width: 200px; height: 150px;" id="remoteVideo" autoplay></video>
+</div>

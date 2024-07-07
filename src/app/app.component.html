@@ -1,24 +1,2 @@
-<div style="display: flex; gap: 1rem; flex-direction: column;">
-  <div>Local Stream</div>
-  <div style="width: 100%; aspect-ratio: 16/9">
-    <video autoplay id="localVideoPlayer" style="width: 100%; height: 100%;" [srcObject]="localStream"></video>
-  </div>
-
-  <div style="display: flex; flex-direction: column;">
-    <button (click)="createCallerPeer('C2')">Call C2</button>
-    <!-- <button (click)="createCallerPeer('C3')">Call C3</button> -->
-    <!-- <button (click)="callAllPeers()">Call all</button> -->
-  </div>
-
-  <div>Remote Stream</div>
-  <div *ngFor="let remoteUser of remoteUsersEmitter | async;">
-    <div style="width: 100%; aspect-ratio: 16/9">
-      <video autoplay style="width: 100%; height: 100%;" [srcObject]="remoteUser.camera"></video>
-    </div>
-  </div>
-
-  <!-- <div style="display: flex; flex-direction: column;">
-    <title>Callee</title>
-    <input type="text" (change)="createCalleePeer($event)" placeholder="Write the offer SDP">
-  </div> -->
-</div>
+<!-- <app-two-way-stream></app-two-way-stream> -->
+<app-renegotiate></app-renegotiate>
