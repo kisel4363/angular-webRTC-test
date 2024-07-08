@@ -24,123 +24,74 @@ export class RenegotiateComponent implements OnInit {
     })
   }
 
-  ngOnInit(): void {
-    
-  }
+  ngOnInit(): void { }
 
   getMediaStream(user: string){
     if( user === "C1"){
       navigator.mediaDevices.getUserMedia({video: true})
       .then( stream => {
-        this.localStream = stream;
         // create peer
-        this.localPeer = new RTCPeerConnection({ iceServers });
-        // Listen remote streams
-        this.localPeer.ontrack = event => {
-          console.log("RECEIVING STREAM", event.streams[0])
-          this.remoteStream = event.streams[0];
-          this.remoteStream.getTracks().forEach( tr => console.log("tr", tr) )
-          document.getElementById
-        }
+        this.localPeer = this.createPeer(stream);
         // save stream
         this.localStream = stream;
-        // add stream to peer
-        stream.getTracks().forEach( tr => {
-          this.localPeer.addTrack(tr, stream);
-        });
-        // listen ice candidates
-        this.localPeer.onicecandidate = ev => {
-          console.log("Send cand")
-          this._socket.sendIceCandidate(ev.candidate, "C2")
-        }
-        // listen ans
-        this._socket.listenAnswer().subscribe( ({answer, from}) => {
-          this.localPeer.setRemoteDescription(answer);
-        })
       })
     } else if ( user === "C2"){
       navigator.mediaDevices.getDisplayMedia({video: true})
       .then( stream => {
-        // create stream
-        this.localPeer = new RTCPeerConnection({ iceServers });
-        // listen remote stream
-        this.localPeer.ontrack = event => {
-          console.log("RECEIVING STREAM", event.streams[0])
-          this.remoteStream = event.streams[0];
-          this.remoteStream.getTracks().forEach( tr => console.log("tr", tr) )
-        }
+        // create peer
+        this.localPeer = this.createPeer(stream);
         // save stream
         this.localStream = stream;
-        // add stream to peer
-        // stream.getTracks().forEach( tr => {
-        //   this.localPeer.addTrack(tr, stream);
-        // });
-        // add empty stream
-        // const canvas = document.createElement('canvas');
-        // const empty = canvas.captureStream();
-        // empty.getTracks().forEach( tr => {
-        //   tr.enabled = false;
-        //   this.localPeer.addTrack(tr, empty);
-        // });
-        this._socket.listenIceCandidate().subscribe( ({ice, from}) => {
-          console.log("Receive cand")
-          this.localPeer.addIceCandidate(ice)
-        })
-        // set up answering peer
-        this._socket.listenOffer().subscribe(({offer, from}) => {
-          console.log("Receive offer")
-          this.localPeer.setRemoteDescription(offer);
-          
-          this.localPeer.createAnswer().then( ans => {
-            this.localPeer.setLocalDescription(ans);
-            this._socket.sendAnswer(ans, "C1");
-          })
-        })
       })
     }
   }
 
-  setUpTwoWayPeer(peer: RTCPeerConnection){
-    // send candidate
-    // listen ice candidates
-    this.localPeer.onicecandidate = ev => {
-      console.log("Send cand")
-      this._socket.sendIceCandidate(ev.candidate, "C2")
+  createPeer(stream?: MediaStream){
+    // create peer
+    const peer = new RTCPeerConnection({ iceServers });
+    // Listen remote streams
+    peer.ontrack = event => {
+      console.log("Incoming stream", event.streams[0])
+      this.remoteStream = event.streams[0];
     }
+    if(stream){
+      stream.getTracks().forEach( tr => {
+        peer.addTrack(tr, stream);
+      });
+    }
+    // set up peer to receive and send offers
+    this.setUpTwoWayPeer(peer)
+
+    return peer
+  }
+  setUpTwoWayPeer(peer: RTCPeerConnection){
     // listen candidate
     this._socket.listenIceCandidate().subscribe( ({ice, from}) => {
-      console.log("Receive cand")
-      this.localPeer.addIceCandidate(ice)
+      console.log("Incoming Candidate")
+      peer.addIceCandidate(ice)
     })
 
     // listen offer
     this._socket.listenOffer().subscribe(({offer, from}) => {
-      console.log("Receive offer")
-      this.localPeer.setRemoteDescription(offer);
-      
-      this.localPeer.createAnswer().then( ans => {
-        this.localPeer.setLocalDescription(ans);
-        this._socket.sendAnswer(ans, "C1");
-      })
+      console.log("Incoming offer")
+      // Receiving offer with a previews connection
+      if (peer.connectionState !== "new"){
+        console.log("Connection not new")
+        this.localPeer = this.createPeer(this.localStream);
+      }
+
+      peer.setRemoteDescription(offer)
+      .then( () => peer.createAnswer() )
+      .then( ans => 
+        peer.setLocalDescription(ans)
+        .then( () => this._socket.sendAnswer(ans, from) )
+      )
     })
 
     // listen ans
     this._socket.listenAnswer().subscribe( ({answer, from}) => {
+      console.log("Incoming answer", answer)
       this.localPeer.setRemoteDescription(answer);
-    })
-
-  }
-
-  sendOffer(peer: RTCPeerConnection, user: string, sendOnly = false){
-    const options: RTCOfferOptions = {
-      offerToReceiveAudio: false,
-      offerToReceiveVideo: sendOnly
-    }
-
-    peer.createOffer(options)
-    .then( offer => {
-      peer.setLocalDescription(offer);
-      this._socket.sendOffer(offer, user);
     })
 
   }
@@ -156,19 +107,29 @@ export class RenegotiateComponent implements OnInit {
       this.localPeer.setLocalDescription(offer);
       this._socket.sendOffer(offer, "C2");
     })
+    // send ice
+    this.localPeer.onicecandidate = ev => {
+      console.log("Send cand")
+      this._socket.sendIceCandidate(ev.candidate, "C2")
+    }
   }
 
   sendC2Stream(){
     // send offer
     const options: RTCOfferOptions = {
       offerToReceiveAudio: false,
-      offerToReceiveVideo: false
+      offerToReceiveVideo: true
     }
-    this.localPeer.createOffer(options)
+    this.localPeer.createOffer()
     .then( offer => {
+      this._socket.sendOffer(offer, "C1");
       this.localPeer.setLocalDescription(offer);
-      this._socket.sendOffer(offer, "C2");
     })
+    // send ice
+    this.localPeer.onicecandidate = ev => {
+      console.log("Send cand")
+      this._socket.sendIceCandidate(ev.candidate, "C1")
+    }
   }
 
 }
